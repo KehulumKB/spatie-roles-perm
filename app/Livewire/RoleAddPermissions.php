@@ -2,26 +2,31 @@
 
 namespace App\Livewire;
 
+use session;
 use Livewire\Component;
 
 class RoleAddPermissions extends Component
 {
-    public $id;
+    public $roleId;
     public $role;
     public $permissions;
     public $selectedPermissions = [];
+    public $rolePermissions;
 
     public function givePermissionTo()
     {
-        // $permission = \Spatie\Permission\Models\Permission::findById($permissionId);
-        // $this->role->givePermissionTo($permission);
-
         $this->validate([
             'selectedPermissions' => 'required|array|min:1',
         ]);
 
         try {
-            $this->role->syncPermissions($this->selectedPermissions);
+            // Fetch permission names from IDs
+            $permissionNames = \Spatie\Permission\Models\Permission::whereIn('id', $this->selectedPermissions)
+                ->pluck('name')
+                ->toArray();
+
+            // Sync permissions using names
+            $this->role->syncPermissions($permissionNames);
 
             session()->flash('message', 'Pemissions assigned to Role successfully');
             return $this->redirect('/manage-role', navigate: true);
@@ -33,16 +38,21 @@ class RoleAddPermissions extends Component
 
     public function mount($id)
     {
-        $this->id = $id;
+        $this->roleId = $id;
         $this->role = \Spatie\Permission\Models\Role::findById($id);
 
         if (!$this->role) {
-            dd('Role not found for ID: ' . $id);
+            abort(404, 'Role not found');
         }
+
+        // Fetch role permissions and store in selectedPermissions to sync with checkboxes
+        $this->rolePermissions = $this->role->permissions->pluck('id')->toArray();
+        $this->selectedPermissions = $this->rolePermissions; // This ensures checkboxes are checked
 
         $this->permissions = \Spatie\Permission\Models\Permission::all();
     }
-    
+
+
     public function render()
     {
         return view('livewire.role-add-permissions');
